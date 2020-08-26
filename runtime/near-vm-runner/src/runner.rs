@@ -48,6 +48,8 @@ pub fn run_vm<'a>(
     promise_results: &'a [PromiseResult],
     vm_kind: VMKind,
 ) -> (Option<VMOutcome>, Option<VMError>) {
+    #[cfg(feature = "combined_vm")]
+    use crate::combined_runner::combined_runner::run_combined;
     use crate::wasmer_runner::run_wasmer;
     #[cfg(feature = "wasmtime_vm")]
     use crate::wasmtime_runner::wasmtime_runner::run_wasmtime;
@@ -78,6 +80,22 @@ pub fn run_vm<'a>(
         #[cfg(not(feature = "wasmtime_vm"))]
         VMKind::Wasmtime => {
             panic!("Wasmtime is not supported, compile with '--features wasmtime_vm'")
+        }
+        #[cfg(feature = "combined_vm")]
+        VMKind::Combined => run_combined(
+            code_hash,
+            code,
+            method_name,
+            ext,
+            context,
+            wasm_config,
+            fees_config,
+            promise_results,
+            None,
+        ),
+        #[cfg(not(feature = "combined_vm"))]
+        VMKind::Combined => {
+            panic!("Combined is not supported, compile with '--features combined_vm'")
         }
     }
 }
@@ -94,6 +112,8 @@ pub fn run_vm_profiled<'a>(
     vm_kind: VMKind,
     profile: ProfileData,
 ) -> (Option<VMOutcome>, Option<VMError>) {
+    #[cfg(feature = "combined_vm")]
+    use crate::combined_runner::combined_runner::run_combined;
     use crate::wasmer_runner::run_wasmer;
     #[cfg(feature = "wasmtime_vm")]
     use crate::wasmtime_runner::wasmtime_runner::run_wasmtime;
@@ -125,6 +145,22 @@ pub fn run_vm_profiled<'a>(
         VMKind::Wasmtime => {
             panic!("Wasmtime is not supported, compile with '--features wasmtime_vm'")
         }
+        #[cfg(feature = "combined_vm")]
+        VMKind::Combined => run_combined(
+            code_hash,
+            code,
+            method_name,
+            ext,
+            context,
+            wasm_config,
+            fees_config,
+            promise_results,
+            Some(profile),
+        ),
+        #[cfg(not(feature = "combined_vm"))]
+        VMKind::Combined => {
+            panic!("Combined mode is not supported, compile with '--features combined_vm'")
+        }
     }
 }
 
@@ -132,6 +168,8 @@ pub fn with_vm_variants(runner: fn(VMKind) -> ()) {
     runner(VMKind::Wasmer);
     #[cfg(feature = "wasmtime_vm")]
     runner(VMKind::Wasmtime);
+    #[cfg(feature = "wasmtime_combined")]
+    runner(VMKind::Combined);
 }
 
 /// Used for testing cost of compiling a module
@@ -150,6 +188,7 @@ pub fn compile_module(vm_kind: VMKind, code: &Vec<u8>) -> bool {
         VMKind::Wasmtime => {
             panic!("Wasmtime is not supported, compile with '--features wasmtime_vm'")
         }
+        VMKind::Combined => panic!("Must compile with explicit VM, not combination"),
     };
     false
 }
