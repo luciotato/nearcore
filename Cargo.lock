@@ -2767,6 +2767,7 @@ dependencies = [
  "keccak-hash",
  "libsecp256k1",
  "near-primitives",
+ "near-store",
  "near-vm-errors",
  "near-vm-logic",
  "num-bigint 0.3.0",
