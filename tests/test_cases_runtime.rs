@@ -291,4 +291,10 @@ mod test {
         let node = create_free_runtime_node();
         test_smart_contract_free(node);
     }
+
+    #[test]
+    fn test_evm_deploy_call_runtime() {
+        let node = create_runtime_node();
+        test_evm_deploy_call(node);
+    }
 }

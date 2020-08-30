@@ -1,3 +1,12 @@
+use std::collections::HashMap;
+use std::mem::size_of;
+
+use byteorder::ByteOrder;
+use serde::{Deserialize, Serialize};
+
+use near_runtime_fees::RuntimeFeesConfig;
+use near_vm_errors::InconsistentStateError;
+
 use crate::config::ActionCosts;
 use crate::config::ExtCosts::*;
 use crate::config::VMConfig;
@@ -10,12 +19,6 @@ use crate::types::{
 };
 use crate::utils::split_method_names;
 use crate::{ExtCosts, HostError, VMLogicError, ValuePtr};
-use byteorder::ByteOrder;
-use near_runtime_fees::RuntimeFeesConfig;
-use near_vm_errors::InconsistentStateError;
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::mem::size_of;
 
 type Result<T> = ::std::result::Result<T, VMLogicError>;
 

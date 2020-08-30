@@ -8,7 +8,7 @@ use near_primitives::errors::{
     ActionError, ActionErrorKind, InvalidAccessKeyError, InvalidTxError, TxExecutionError,
 };
 use near_primitives::hash::hash;
-use near_primitives::serialize::to_base64;
+use near_primitives::serialize::{from_base64, to_base64};
 use near_primitives::types::Balance;
 use near_primitives::views::FinalExecutionStatus;
 use near_primitives::views::{AccountView, FinalExecutionOutcomeView};
@@ -17,7 +17,7 @@ use neard::config::{NEAR_BASE, TESTING_INIT_BALANCE, TESTING_INIT_STAKE};
 
 use crate::fees_utils::FeeHelper;
 use crate::node::Node;
-use crate::runtime_utils::{alice_account, bob_account, eve_dot_alice_account};
+use crate::runtime_utils::{alice_account, bob_account, eve_dot_alice_account, evm_account};
 use crate::user::User;
 
 /// The amount to send with function call.
@@ -1158,4 +1158,21 @@ pub fn test_smart_contract_free(node: impl Node) {
 
     let new_root = node_user.get_state_root();
     assert_ne!(root, new_root);
+}
+
+pub fn test_evm_deploy_call(node: impl Node) {
+    let node_user = node.user();
+    let root = node_user.get_state_root();
+    let bytes = hex::decode(
+        include_bytes!("../../../runtime/near-evm-runner/tests/build/zombieAttack.bin").to_vec(),
+    )
+    .unwrap();
+    let tx_result = node_user
+        .function_call(alice_account(), evm_account(), "deploy_code", bytes, 10u64.pow(14), 0)
+        .unwrap();
+    let contract_id = if let FinalExecutionStatus::SuccessValue(value) = tx_result.status {
+        from_base64(&value).unwrap()
+    } else {
+        panic!("Must be success, received {:?}", tx_result);
+    };
 }

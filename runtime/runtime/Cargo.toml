@@ -28,6 +28,7 @@ near-runtime-fees = { path = "../../runtime/near-runtime-fees" }
 near-vm-logic = { path = "../../runtime/near-vm-logic" }
 near-vm-runner = { path = "../../runtime/near-vm-runner" }
 near-vm-errors = { path = "../../runtime/near-vm-errors" }
+near-evm-runner = { path = "../../runtime/near-evm-runner" }
 
 [features]
 default = []

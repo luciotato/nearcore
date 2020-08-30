@@ -1,7 +1,9 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use ethereum_types::{Address, H160, U256};
+pub use ethereum_types::U256;
+use ethereum_types::{Address, H160};
 use evm::CreateContractAddress;
 
+use near_primitives::trie_key::TrieKey;
 use near_primitives::types::{AccountId, Balance};
 use near_store::TrieUpdate;
 use near_vm_errors::VMError;
@@ -10,7 +12,9 @@ use near_vm_logic::VMOutcome;
 pub use crate::errors::EvmError;
 use crate::evm_state::{EvmAccount, EvmState, StateStore};
 use crate::types::{GetCodeArgs, GetStorageAtArgs, WithdrawNearArgs};
-use near_primitives::trie_key::TrieKey;
+use near_primitives::receipt::Receipt;
+use near_vm_errors::FunctionCallError;
+use near_vm_logic::types::ReturnData;
 
 mod builtins;
 mod errors;
@@ -204,14 +208,19 @@ impl<'a> EvmContext<'a> {
 
 pub fn run_evm(
     mut state_update: &mut TrieUpdate,
-    account_id: AccountId,
-    predecessor_id: AccountId,
+    account_id: &AccountId,
+    predecessor_id: &AccountId,
+    amount: Balance,
     attached_deposit: Balance,
     method_name: String,
     args: Vec<u8>,
-) -> (Option<VMOutcome>, Option<VMError>) {
-    let mut context =
-        EvmContext::new(&mut state_update, account_id, predecessor_id, attached_deposit);
+) -> (Option<VMOutcome>, Option<VMError>, Vec<Receipt>) {
+    let mut context = EvmContext::new(
+        &mut state_update,
+        account_id.clone(),
+        predecessor_id.clone(),
+        attached_deposit,
+    );
     let result = match method_name.as_str() {
         "deploy_code" => context.deploy_code(args).map(|address| utils::address_to_vec(&address)),
         "get_code" => context.get_code(args),
@@ -222,5 +231,20 @@ pub fn run_evm(
         "withdraw_near" => context.withdraw_near(args).map(|_| vec![]),
         _ => Err(EvmError::UnknownError),
     };
-    (None, None)
+    match result {
+        Ok(value) => {
+            let outcome = VMOutcome {
+                balance: amount,
+                storage_usage: 0,
+                return_data: ReturnData::Value(value),
+                burnt_gas: 0,
+                used_gas: 0,
+                logs: vec![],
+            };
+            (Some(outcome), None, vec![])
+        }
+        Err(err) => {
+            (None, Some(VMError::FunctionCallError(FunctionCallError::WasmUnknownError)), vec![])
+        }
+    }
 }

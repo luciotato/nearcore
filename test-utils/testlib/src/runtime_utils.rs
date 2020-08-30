@@ -5,7 +5,7 @@ use byteorder::{ByteOrder, LittleEndian};
 
 use near_chain_configs::Genesis;
 use near_primitives::account::Account;
-use near_primitives::hash::{hash, CryptoHash};
+use near_primitives::hash::{hash, CryptoHash, Digest};
 use near_primitives::state_record::StateRecord;
 use near_primitives::types::{AccountId, StateRoot};
 use near_store::test_utils::create_tries;
@@ -22,12 +22,21 @@ pub fn bob_account() -> AccountId {
 pub fn eve_dot_alice_account() -> AccountId {
     "eve.alice.near".to_string()
 }
+pub fn evm_account() -> AccountId {
+    "evm".to_string()
+}
 
 pub fn default_code_hash() -> CryptoHash {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.push("../../runtime/near-vm-runner/tests/res/test_contract_rs.wasm");
     let genesis_wasm = fs::read(path).unwrap();
     hash(&genesis_wasm)
+}
+
+pub fn evm_code_hash() -> CryptoHash {
+    let mut buf = [0u8; 32];
+    buf[31] = 1;
+    CryptoHash(Digest(buf))
 }
 
 const DEFAULT_TEST_CONTRACT: &[u8] =
