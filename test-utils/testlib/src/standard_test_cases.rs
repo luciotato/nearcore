@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use assert_matches::assert_matches;
+use ethabi_contract::use_contract;
 use near_crypto::{InMemorySigner, KeyType};
 use near_jsonrpc::ServerError;
 use near_primitives::account::{AccessKey, AccessKeyPermission, FunctionCallPermission};
@@ -8,7 +9,7 @@ use near_primitives::errors::{
     ActionError, ActionErrorKind, InvalidAccessKeyError, InvalidTxError, TxExecutionError,
 };
 use near_primitives::hash::hash;
-use near_primitives::serialize::{from_base64, to_base64};
+use near_primitives::serialize::to_base64;
 use near_primitives::types::Balance;
 use near_primitives::views::FinalExecutionStatus;
 use near_primitives::views::{AccountView, FinalExecutionOutcomeView};
@@ -19,6 +20,7 @@ use crate::fees_utils::FeeHelper;
 use crate::node::Node;
 use crate::runtime_utils::{alice_account, bob_account, eve_dot_alice_account, evm_account};
 use crate::user::User;
+use near_evm_runner::U256;
 
 /// The amount to send with function call.
 const FUNCTION_CALL_AMOUNT: Balance = TESTING_INIT_BALANCE / 10;
@@ -1160,19 +1162,43 @@ pub fn test_smart_contract_free(node: impl Node) {
     assert_ne!(root, new_root);
 }
 
+use_contract!(cryptozombies, "../../runtime/near-evm-runner/tests/build/zombieAttack.abi");
+
 pub fn test_evm_deploy_call(node: impl Node) {
     let node_user = node.user();
-    let root = node_user.get_state_root();
     let bytes = hex::decode(
         include_bytes!("../../../runtime/near-evm-runner/tests/build/zombieAttack.bin").to_vec(),
     )
     .unwrap();
-    let tx_result = node_user
+    let contract_id = node_user
         .function_call(alice_account(), evm_account(), "deploy_code", bytes, 10u64.pow(14), 0)
+        .unwrap()
+        .status
+        .as_success_decoded()
         .unwrap();
-    let contract_id = if let FinalExecutionStatus::SuccessValue(value) = tx_result.status {
-        from_base64(&value).unwrap()
-    } else {
-        panic!("Must be success, received {:?}", tx_result);
-    };
+
+    let (input, _decoder) = cryptozombies::functions::create_random_zombie::call("test");
+    let args = vec![contract_id.clone(), input].concat();
+    assert_eq!(
+        node_user
+            .function_call(alice_account(), evm_account(), "call_function", args, 10u64.pow(14), 0)
+            .unwrap()
+            .status
+            .as_success_decoded()
+            .unwrap(),
+        Vec::<u8>::new()
+    );
+
+    let (input, _decoder) = cryptozombies::functions::get_zombies_by_owner::call(
+        near_evm_runner::utils::near_account_id_to_evm_address(&alice_account()),
+    );
+    let args = vec![contract_id, input].concat();
+    let bytes = node_user
+        .function_call(alice_account(), evm_account(), "view_call_contract", args, 10u64.pow(14), 0)
+        .unwrap()
+        .status
+        .as_success_decoded()
+        .unwrap();
+    let res = cryptozombies::functions::get_zombies_by_owner::decode_output(&bytes).unwrap();
+    assert_eq!(res, vec![U256::from(0)]);
 }
