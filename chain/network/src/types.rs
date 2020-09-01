@@ -165,7 +165,6 @@ impl From<PeerChainInfo> for PeerChainInfoV2 {
             genesis_id: peer_chain_info.genesis_id,
             height: peer_chain_info.height,
             tracked_shards: peer_chain_info.tracked_shards,
-            // TODO(MOO): Select default value for archival node
             archival: false,
         }
     }
@@ -208,7 +207,6 @@ impl std::error::Error for HandshakeFailureReason {}
 
 #[derive(BorshSerialize, Serialize, PartialEq, Eq, Clone, Debug)]
 pub struct Handshake {
-    /// Protocol version.
     pub version: u32,
     /// Oldest supported protocol version.
     pub oldest_supported_version: u32,
@@ -388,13 +386,13 @@ impl BorshDeserialize for HandshakeV2 {
     }
 }
 
-impl From<Handshake> for HandshakeV2 {
-    fn from(handshake_old: Handshake) -> Self {
+impl From<HandshakeV2> for Handshake {
+    fn from(handshake_old: HandshakeV2) -> Self {
         Self {
             // In previous version of handshake, nodes usually sent the oldest supported version instead of their current version.
             // Computing the current version of the other as the oldest version plus 1, but keeping it smaller than current version.
-            version: std::cmp::min(PROTOCOL_VERSION - 1, handshake_old.version.saturating_add(1)),
-            oldest_supported_version: handshake_old.version,
+            version: handshake_old.version,
+            oldest_supported_version: handshake_old.oldest_supported_version,
             peer_id: handshake_old.peer_id,
             target_peer_id: handshake_old.target_peer_id,
             listen_port: handshake_old.listen_port,
@@ -530,6 +528,20 @@ impl Debug for RoutedMessageBody {
 pub enum PeerIdOrHash {
     PeerId(PeerId),
     Hash(CryptoHash),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize, Serialize, Hash)]
+pub enum AccountIdOrPeerTrackingShard {
+    AccountId(AccountId),
+    // The request should be sent to any peer tracking shard.
+    // `fallback_account_id` is the account to sent the message to if no such peer exist. It is used
+    // to provide the block producer owning the part to cover situations when no peer is tracking
+    // shard, but the corresponding block producer is still online.
+    PeerTrackingShard {
+        shard_id: ShardId,
+        only_archival: bool,
+        fallback_account_id: Option<AccountId>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize, Serialize, Hash)]
@@ -987,7 +999,7 @@ pub struct Consolidate {
     pub actor: Addr<Peer>,
     pub peer_info: PeerInfo,
     pub peer_type: PeerType,
-    pub chain_info: PeerChainInfo,
+    pub chain_info: PeerChainInfoV2,
     // Edge information from this node.
     // If this is None it implies we are outbound connection, so we need to create our
     // EdgeInfo part and send it to the other peer.
@@ -1139,7 +1151,7 @@ pub enum NetworkRequests {
 
     /// Request chunk parts and/or receipts
     PartialEncodedChunkRequest {
-        account_id: AccountId,
+        target: AccountIdOrPeerTrackingShard,
         request: PartialEncodedChunkRequestMsg,
     },
     /// Information about chunk such as its header, some subset of parts and/or incoming receipts
@@ -1206,7 +1218,7 @@ impl Message for EdgeList {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct FullPeerInfo {
     pub peer_info: PeerInfo,
-    pub chain_info: PeerChainInfo,
+    pub chain_info: PeerChainInfoV2,
     pub edge_info: EdgeInfo,
 }
 
@@ -1408,7 +1420,12 @@ pub enum NetworkViewClientResponses {
     /// Headers response.
     BlockHeaders(Vec<BlockHeader>),
     /// Chain information.
-    ChainInfo { genesis_id: GenesisId, height: BlockHeight, tracked_shards: Vec<ShardId> },
+    ChainInfo {
+        genesis_id: GenesisId,
+        height: BlockHeight,
+        tracked_shards: Vec<ShardId>,
+        archival: bool,
+    },
     /// Response to state request.
     StateResponse(Box<StateResponseInfo>),
     /// Valid announce accounts.
@@ -1442,7 +1459,7 @@ pub struct QueryPeerStats {}
 #[derive(Debug)]
 pub struct PeerStatsResult {
     /// Chain info.
-    pub chain_info: PeerChainInfo,
+    pub chain_info: PeerChainInfoV2,
     /// Number of bytes we've received from the peer.
     pub received_bytes_per_sec: u64,
     /// Number of bytes we've sent to the peer.

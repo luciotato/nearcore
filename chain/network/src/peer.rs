@@ -158,7 +158,7 @@ pub struct Peer {
     /// This node genesis id.
     genesis_id: GenesisId,
     /// Latest chain info from the peer.
-    chain_info: PeerChainInfo,
+    chain_info: PeerChainInfoV2,
     /// Edge information needed to build the real edge. This is relevant for handshake.
     edge_info: Option<EdgeInfo>,
     /// Last time an update of received message was sent to PeerManager
@@ -273,10 +273,8 @@ impl Peer {
                     genesis_id,
                     height,
                     tracked_shards,
+                    archival,
                 }) => {
-                    // TODO(MOO): Fill this here
-                    let archival = false;
-
                     let handshake = match act.protocol_version {
                         36 => PeerMessage::Handshake(Handshake::new(
                             act.protocol_version,
@@ -685,8 +683,8 @@ impl StreamHandler<Result<Vec<u8>, ReasonForBan>> for Peer {
             msg.len() as i64,
         );
 
-        if let PeerMessage::Handshake(handshake) = peer_msg {
-            peer_msg = PeerMessage::HandshakeV2(handshake.into());
+        if let PeerMessage::HandshakeV2(handshake) = peer_msg {
+            peer_msg = PeerMessage::Handshake(handshake.into());
         }
 
         match (self.peer_type, self.peer_status, peer_msg) {
@@ -722,7 +720,7 @@ impl StreamHandler<Result<Vec<u8>, ReasonForBan>> for Peer {
                 }
                 ctx.stop();
             }
-            (_, PeerStatus::Connecting, PeerMessage::HandshakeV2(handshake)) => {
+            (_, PeerStatus::Connecting, PeerMessage::Handshake(handshake)) => {
                 debug!(target: "network", "{:?}: Received handshake {:?}", self.node_info.id, handshake);
 
                 debug_assert!(
