@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use borsh::BorshSerialize;
-use log::debug;
 
 use near_crypto::PublicKey;
 use near_primitives::account::{AccessKeyPermission, Account};
@@ -64,19 +63,8 @@ pub(crate) fn get_insufficient_storage_stake(
     }
 }
 
-pub(crate) fn get_code_with_cache(
-    state_update: &TrieUpdate,
-    account_id: &AccountId,
-    account: &Account,
-) -> Result<Option<Arc<ContractCode>>, StorageError> {
-    debug!(target:"runtime", "Calling the contract at account {}", account_id);
-    let code_hash = account.code_hash;
-    let code = || get_code(state_update, account_id, Some(code_hash));
-    crate::cache::get_code(code_hash, code)
-}
-
 fn run_wasm(
-    state_update: &mut TrieUpdate,
+    runtime_ext: &mut RuntimeExt,
     apply_state: &ApplyState,
     account: &mut Account,
     receipt: &Receipt,
@@ -87,20 +75,8 @@ fn run_wasm(
     action_hash: &CryptoHash,
     config: &RuntimeConfig,
     is_last_action: bool,
-    epoch_info_provider: &dyn EpochInfoProvider,
     code: Arc<ContractCode>,
-) -> (Option<VMOutcome>, Option<VMError>, Vec<Receipt>) {
-    let mut runtime_ext = RuntimeExt::new(
-        state_update,
-        account_id,
-        &action_receipt.signer_id,
-        &action_receipt.signer_public_key,
-        action_receipt.gas_price,
-        action_hash,
-        &apply_state.epoch_id,
-        &apply_state.last_block_hash,
-        epoch_info_provider,
-    );
+) -> (Option<VMOutcome>, Option<VMError>) {
     // Output data receipts are ignored if the function call is not the last action in the batch.
     let output_data_receivers: Vec<_> = if is_last_action {
         action_receipt.output_data_receivers.iter().map(|r| r.receiver_id.clone()).collect()
@@ -138,13 +114,13 @@ fn run_wasm(
         code.hash.as_ref().to_vec(),
         &code.code,
         function_call.method_name.as_bytes(),
-        &mut runtime_ext,
+        runtime_ext,
         context,
         &config.wasm_config,
         &config.transaction_costs,
         promise_results,
     );
-    (outcome, err, runtime_ext.into_receipts(&receipt.predecessor_id))
+    (outcome, err)
 }
 
 pub(crate) fn action_function_call(
@@ -168,11 +144,21 @@ pub(crate) fn action_function_call(
         )
         .into());
     }
-    let (outcome, err, receipts) =
-        if near_evm_runner::U256::from((account.code_hash.0).0) == near_evm_runner::U256::from(1) {
+    let mut runtime_ext = RuntimeExt::new(
+        state_update,
+        account_id,
+        &action_receipt.signer_id,
+        &action_receipt.signer_public_key,
+        action_receipt.gas_price,
+        action_hash,
+        &apply_state.epoch_id,
+        &apply_state.last_block_hash,
+        epoch_info_provider,
+    );
+    let (outcome, err) =
+        if ethereum_types::U256::from((account.code_hash.0).0) == ethereum_types::U256::from(1) {
             near_evm_runner::run_evm(
-                state_update,
-                account_id,
+                &mut runtime_ext,
                 &receipt.predecessor_id,
                 account.amount,
                 function_call.deposit,
@@ -180,7 +166,7 @@ pub(crate) fn action_function_call(
                 function_call.args.clone(),
             )
         } else {
-            let code = match get_code_with_cache(state_update, account_id, &account) {
+            let code = match runtime_ext.get_code(account.code_hash) {
                 Ok(Some(code)) => code,
                 Ok(None) => {
                     let error =
@@ -195,7 +181,7 @@ pub(crate) fn action_function_call(
                 }
             };
             run_wasm(
-                state_update,
+                &mut runtime_ext,
                 apply_state,
                 account,
                 receipt,
@@ -206,7 +192,6 @@ pub(crate) fn action_function_call(
                 action_hash,
                 config,
                 is_last_action,
-                epoch_info_provider,
                 code,
             )
         };
@@ -242,7 +227,7 @@ pub(crate) fn action_function_call(
             account.amount = outcome.balance;
             account.storage_usage = outcome.storage_usage;
             result.result = Ok(outcome.return_data);
-            result.new_receipts.extend(receipts);
+            result.new_receipts.extend(runtime_ext.into_receipts(&receipt.predecessor_id));
         }
     } else {
         assert!(!execution_succeeded, "Outcome should always be available if execution succeeded")
