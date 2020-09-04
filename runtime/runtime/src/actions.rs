@@ -12,7 +12,7 @@ use near_primitives::transaction::{
 };
 use near_primitives::types::{AccountId, Balance, EpochInfoProvider, ValidatorStake};
 use near_primitives::utils::{
-    is_valid_account_id, is_valid_sub_account_id, is_valid_top_level_account_id,
+    is_valid_account_id, is_valid_sub_account_id, is_valid_top_level_account_id, EVM_CODE_HASH,
 };
 use near_primitives::version::CORRECT_RANDOM_VALUE_PROTOCOL_VERSION;
 use near_runtime_configs::AccountCreationConfig;
@@ -77,12 +77,13 @@ pub(crate) fn execute_function_call(
     is_last_action: bool,
     is_view: bool,
 ) -> (Option<VMOutcome>, Option<VMError>) {
-    if ethereum_types::U256::from((account.code_hash.0).0) == ethereum_types::U256::from(1) {
+    if account.code_hash == *EVM_CODE_HASH {
         near_evm_runner::run_evm(
             runtime_ext,
             predecessor_id,
             account.amount,
             function_call.deposit,
+            account.storage_usage,
             function_call.method_name.clone(),
             function_call.args.clone(),
         )

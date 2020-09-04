@@ -5,12 +5,12 @@ use near_crypto::{InMemorySigner, KeyType, Signer};
 use near_primitives::account::Account;
 use near_primitives::state_record::StateRecord;
 use near_primitives::types::AccountId;
+use near_primitives::utils::EVM_CODE_HASH;
 use neard::config::{GenesisExt, TESTING_INIT_BALANCE};
 
 use crate::node::Node;
 use crate::runtime_utils::{
-    add_test_contract, alice_account, bob_account, evm_account, evm_code_hash,
-    get_runtime_and_trie_from_genesis,
+    add_test_contract, alice_account, bob_account, evm_account, get_runtime_and_trie_from_genesis,
 };
 use crate::user::runtime_user::MockClient;
 use crate::user::{RuntimeUser, User};
@@ -31,7 +31,7 @@ impl RuntimeNode {
             account: Account {
                 amount: TESTING_INIT_BALANCE,
                 locked: 0,
-                code_hash: evm_code_hash(),
+                code_hash: *EVM_CODE_HASH,
                 storage_usage: 0,
             },
         });
