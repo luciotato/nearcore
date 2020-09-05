@@ -441,6 +441,7 @@ pub fn setup_mock_all_validators(
                                     },
                                     height: last_height2[i],
                                     tracked_shards: vec![],
+                                    archival: false,
                                 },
                                 edge_info: EdgeInfo::default(),
                             })

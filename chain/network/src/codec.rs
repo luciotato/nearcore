@@ -87,7 +87,7 @@ mod test {
 
     use crate::routing::EdgeInfo;
     use crate::types::{
-        Handshake, HandshakeFailureReason, HandshakeV2, PeerChainInfo, PeerChainInfoV2,
+        Handshake, HandshakeFailureReason, HandshakeV2, PeerChainInfo, PeerChainInfoOld,
         PeerIdOrHash, PeerInfo, RoutedMessage, RoutedMessageBody, SyncData,
     };
 
@@ -110,7 +110,7 @@ mod test {
             peer_id: peer_info.id.clone(),
             target_peer_id: peer_info.id,
             listen_port: None,
-            chain_info: PeerChainInfoV2 {
+            chain_info: PeerChainInfo {
                 genesis_id: Default::default(),
                 height: 0,
                 tracked_shards: vec![],
@@ -131,7 +131,7 @@ mod test {
             peer_id: peer_info.id.clone(),
             target_peer_id: peer_info.id,
             listen_port: None,
-            chain_info: PeerChainInfo {
+            chain_info: PeerChainInfoOld {
                 genesis_id: Default::default(),
                 height: 0,
                 tracked_shards: vec![],
@@ -150,7 +150,7 @@ mod test {
             peer_id: PeerId::new(PublicKey::empty(KeyType::ED25519)),
             target_peer_id: PeerId::new(PublicKey::empty(KeyType::ED25519)),
             listen_port: None,
-            chain_info: PeerChainInfo {
+            chain_info: PeerChainInfoOld {
                 genesis_id: Default::default(),
                 height: 0,
                 tracked_shards: vec![],

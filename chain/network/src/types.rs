@@ -126,8 +126,9 @@ impl TryFrom<&str> for PeerInfo {
 }
 
 /// Peer chain information.
+/// TODO: Remove in next version
 #[derive(BorshSerialize, BorshDeserialize, Serialize, Clone, Debug, Eq, PartialEq, Default)]
-pub struct PeerChainInfo {
+pub struct PeerChainInfoOld {
     /// Chain Id and hash of genesis block.
     pub genesis_id: GenesisId,
     /// Last known chain height of the peer.
@@ -138,7 +139,7 @@ pub struct PeerChainInfo {
 
 /// Peer chain information.
 #[derive(BorshSerialize, BorshDeserialize, Serialize, Clone, Debug, Eq, PartialEq, Default)]
-pub struct PeerChainInfoV2 {
+pub struct PeerChainInfo {
     /// Chain Id and hash of genesis block.
     pub genesis_id: GenesisId,
     /// Last known chain height of the peer.
@@ -149,23 +150,12 @@ pub struct PeerChainInfoV2 {
     pub archival: bool,
 }
 
-impl From<PeerChainInfoV2> for PeerChainInfo {
-    fn from(peer_chain_info: PeerChainInfoV2) -> Self {
+impl From<PeerChainInfoOld> for PeerChainInfo {
+    fn from(peer_chain_info: PeerChainInfoOld) -> Self {
         Self {
             genesis_id: peer_chain_info.genesis_id,
             height: peer_chain_info.height,
             tracked_shards: peer_chain_info.tracked_shards,
-        }
-    }
-}
-
-impl From<PeerChainInfo> for PeerChainInfoV2 {
-    fn from(peer_chain_info: PeerChainInfo) -> Self {
-        Self {
-            genesis_id: peer_chain_info.genesis_id,
-            height: peer_chain_info.height,
-            tracked_shards: peer_chain_info.tracked_shards,
-            // TODO(MOO): Select default value for archival node
             archival: false,
         }
     }
@@ -219,7 +209,7 @@ pub struct Handshake {
     /// Sender's listening addr.
     pub listen_port: Option<u16>,
     /// Peer's chain information.
-    pub chain_info: PeerChainInfoV2,
+    pub chain_info: PeerChainInfo,
     /// Info for new edge.
     pub edge_info: EdgeInfo,
 }
@@ -239,7 +229,7 @@ pub struct HandshakeAutoDes {
     /// Sender's listening addr.
     pub listen_port: Option<u16>,
     /// Peer's chain information.
-    pub chain_info: PeerChainInfoV2,
+    pub chain_info: PeerChainInfo,
     /// Info for new edge.
     pub edge_info: EdgeInfo,
 }
@@ -250,7 +240,7 @@ impl Handshake {
         peer_id: PeerId,
         target_peer_id: PeerId,
         listen_port: Option<u16>,
-        chain_info: PeerChainInfoV2,
+        chain_info: PeerChainInfo,
         edge_info: EdgeInfo,
     ) -> Self {
         Handshake {
@@ -318,7 +308,7 @@ pub struct HandshakeV2 {
     pub peer_id: PeerId,
     pub target_peer_id: PeerId,
     pub listen_port: Option<u16>,
-    pub chain_info: PeerChainInfo,
+    pub chain_info: PeerChainInfoOld,
     pub edge_info: EdgeInfo,
 }
 
@@ -328,7 +318,7 @@ impl HandshakeV2 {
         peer_id: PeerId,
         target_peer_id: PeerId,
         listen_port: Option<u16>,
-        chain_info: PeerChainInfo,
+        chain_info: PeerChainInfoOld,
         edge_info: EdgeInfo,
     ) -> Self {
         Self {
@@ -352,7 +342,7 @@ pub struct HandshakeV2AutoDes {
     pub peer_id: PeerId,
     pub target_peer_id: PeerId,
     pub listen_port: Option<u16>,
-    pub chain_info: PeerChainInfo,
+    pub chain_info: PeerChainInfoOld,
     pub edge_info: EdgeInfo,
 }
 
@@ -388,22 +378,6 @@ impl BorshDeserialize for HandshakeV2 {
     }
 }
 
-impl From<Handshake> for HandshakeV2 {
-    fn from(handshake_old: Handshake) -> Self {
-        Self {
-            // In previous version of handshake, nodes usually sent the oldest supported version instead of their current version.
-            // Computing the current version of the other as the oldest version plus 1, but keeping it smaller than current version.
-            version: std::cmp::min(PROTOCOL_VERSION - 1, handshake_old.version.saturating_add(1)),
-            oldest_supported_version: handshake_old.version,
-            peer_id: handshake_old.peer_id,
-            target_peer_id: handshake_old.target_peer_id,
-            listen_port: handshake_old.listen_port,
-            chain_info: handshake_old.chain_info.into(),
-            edge_info: handshake_old.edge_info,
-        }
-    }
-}
-
 impl From<HandshakeV2AutoDes> for HandshakeV2 {
     fn from(handshake: HandshakeV2AutoDes) -> Self {
         Self {
@@ -413,6 +387,20 @@ impl From<HandshakeV2AutoDes> for HandshakeV2 {
             target_peer_id: handshake.target_peer_id,
             listen_port: handshake.listen_port,
             chain_info: handshake.chain_info,
+            edge_info: handshake.edge_info,
+        }
+    }
+}
+
+impl From<HandshakeV2> for Handshake {
+    fn from(handshake: HandshakeV2) -> Self {
+        Self {
+            version: handshake.version,
+            oldest_supported_version: handshake.oldest_supported_version,
+            peer_id: handshake.peer_id,
+            target_peer_id: handshake.target_peer_id,
+            listen_port: handshake.listen_port,
+            chain_info: handshake.chain_info.into(),
             edge_info: handshake.edge_info,
         }
     }

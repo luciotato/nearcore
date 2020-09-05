@@ -28,7 +28,7 @@ use crate::routing::{Edge, EdgeInfo};
 use crate::types::{
     Ban, Consolidate, ConsolidateResponse, Handshake, HandshakeFailureReason, HandshakeV2,
     NetworkClientMessages, NetworkClientResponses, NetworkRequests, NetworkViewClientMessages,
-    NetworkViewClientResponses, PeerChainInfo, PeerChainInfoV2, PeerInfo, PeerManagerRequest,
+    NetworkViewClientResponses, PeerChainInfo, PeerChainInfoOld, PeerInfo, PeerManagerRequest,
     PeerMessage, PeerRequest, PeerResponse, PeerStatsResult, PeerStatus, PeerType, PeersRequest,
     PeersResponse, QueryPeerStats, ReasonForBan, RoutedMessageBody, RoutedMessageFrom, SendMessage,
     Unregister, UPDATE_INTERVAL_LAST_TIME_RECEIVED_MESSAGE,
@@ -283,7 +283,7 @@ impl Peer {
                             act.node_id(),
                             act.peer_id().unwrap(),
                             act.node_info.addr_port(),
-                            PeerChainInfoV2 { genesis_id, height, tracked_shards, archival },
+                            PeerChainInfo { genesis_id, height, tracked_shards, archival },
                             act.edge_info.as_ref().unwrap().clone(),
                         )),
                         34..=35 => PeerMessage::HandshakeV2(HandshakeV2::new(
@@ -291,7 +291,7 @@ impl Peer {
                             act.node_id(),
                             act.peer_id().unwrap(),
                             act.node_info.addr_port(),
-                            PeerChainInfo { genesis_id, height, tracked_shards },
+                            PeerChainInfoOld { genesis_id, height, tracked_shards },
                             act.edge_info.as_ref().unwrap().clone(),
                         )),
                         _ => {
@@ -685,8 +685,8 @@ impl StreamHandler<Result<Vec<u8>, ReasonForBan>> for Peer {
             msg.len() as i64,
         );
 
-        if let PeerMessage::Handshake(handshake) = peer_msg {
-            peer_msg = PeerMessage::HandshakeV2(handshake.into());
+        if let PeerMessage::HandshakeV2(handshake) = peer_msg {
+            peer_msg = PeerMessage::Handshake(handshake.into());
         }
 
         match (self.peer_type, self.peer_status, peer_msg) {
@@ -722,7 +722,7 @@ impl StreamHandler<Result<Vec<u8>, ReasonForBan>> for Peer {
                 }
                 ctx.stop();
             }
-            (_, PeerStatus::Connecting, PeerMessage::HandshakeV2(handshake)) => {
+            (_, PeerStatus::Connecting, PeerMessage::Handshake(handshake)) => {
                 debug!(target: "network", "{:?}: Received handshake {:?}", self.node_info.id, handshake);
 
                 debug_assert!(
